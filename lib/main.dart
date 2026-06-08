@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'screens/patient_screen.dart'; // Updated to match current file name
+import 'screens/patient_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const AfyaFlowApp());
 }
 
@@ -15,13 +16,10 @@ class AfyaFlowApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.teal,
-          primary: Colors.teal,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
         scaffoldBackgroundColor: const Color(0xFFF8F9FA),
       ),
-      home: const LoginScreen(),
+      home: const PatientScreen(),
     );
   }
 }
