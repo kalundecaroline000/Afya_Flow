@@ -48,7 +48,7 @@ class RecordsScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.1),
+          backgroundColor: color.withValues(alpha: 0.1),
           child: Icon(icon, color: color),
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -56,7 +56,7 @@ class RecordsScreen extends StatelessWidget {
         isThreeLine: true,
         trailing: Chip(
           label: Text(status, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-          backgroundColor: color.withOpacity(0.1),
+          backgroundColor: color.withValues(alpha: 0.1),
         ),
       ),
     );

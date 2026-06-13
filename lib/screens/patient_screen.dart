@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'patient_dashboard.dart'; // Ensure this is imported
+import 'patient_dashboard.dart';
+import 'registration_screen.dart'; // 1. Added this import
 
 class PatientScreen extends StatefulWidget {
   const PatientScreen({super.key});
@@ -9,15 +10,12 @@ class PatientScreen extends StatefulWidget {
 }
 
 class _PatientScreenState extends State<PatientScreen> {
-  // 1. Add the Form Key
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  // 2. Define the Login logic
   void _handleLogin() {
     if (_formKey.currentState!.validate()) {
-      // If validation passes, show a snackbar and navigate
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Logging in... 🩺'),
@@ -25,7 +23,6 @@ class _PatientScreenState extends State<PatientScreen> {
         ),
       );
 
-      // Navigate to your dashboard
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const PatientDashboard()),
@@ -46,7 +43,7 @@ class _PatientScreenState extends State<PatientScreen> {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
-          child: Form( // 3. Wrap everything in a Form
+          child: Form(
             key: _formKey,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -65,8 +62,6 @@ class _PatientScreenState extends State<PatientScreen> {
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey, letterSpacing: 1.5),
                 ),
                 const SizedBox(height: 40),
-
-                // 4. Use TextFormField instead of TextField for validation
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(
@@ -75,12 +70,7 @@ class _PatientScreenState extends State<PatientScreen> {
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty || !value.contains('@')) {
-                      return 'Please enter a valid email address';
-                    }
-                    return null;
-                  },
+                  validator: (value) => (value == null || !value.contains('@')) ? 'Enter a valid email' : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -91,26 +81,44 @@ class _PatientScreenState extends State<PatientScreen> {
                     border: OutlineInputBorder(),
                   ),
                   obscureText: true,
-                  validator: (value) {
-                    if (value == null || value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
+                  validator: (value) => (value == null || value.length < 6) ? 'Min 6 characters' : null,
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _handleLogin, // 5. Call the function here
+                  onPressed: _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.teal,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                  child: const Text(
-                    'Login to My Portal',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  child: const Text('Login to My Portal', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 20),
+
+                // 2. This is the new "Create Account" link
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("New to Afyaflow? ", style: TextStyle(color: Colors.grey, fontSize: 15)),
+                    GestureDetector(
+                      onTap: () {
+                        // Navigates to the screen you just created
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const RegistrationScreen()),
+                        );
+                      },
+                      child: const Text(
+                        "Create Account",
+                        style: TextStyle(
+                          color: Color(0xFF009688),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
