@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/local_storage_service.dart';
 import '../services/hospital_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -42,7 +43,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // 1. Fetch current name from local storage
     final name = await LocalStorageService.getPatientName();
 
-    // 2. Fetch hospitals for the dropdown selector
+    // 2. ☁️ Sync with Firestore (Making the import active)
+    try {
+      final doc = await FirebaseFirestore.instance.collection('patients_profiles').doc(name).get();
+      if (doc.exists && mounted) {
+        final data = doc.data()!;
+        setState(() {
+          _phoneController.text = data['phone'] ?? '';
+          _weightController.text = data['weight'] ?? '';
+          _heightController.text = data['height'] ?? '';
+          _selectedBloodGroup = data['bloodGroup'];
+          _selectedGender = data['gender'];
+          _selectedHospital = data['hospital'];
+        });
+      }
+    } catch (e) {
+      debugPrint("Firestore Sync Error: $e");
+    }
+
+    // 3. Fetch hospitals for the dropdown selector
     List<dynamic> hospitals = [];
     try {
       hospitals = await HospitalService().fetchAndCacheHospitals();
@@ -55,7 +74,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       hospitals = [
         {'name': 'Thika Level 5 Hospital'},
         {'name': 'Kenyatta National Hospital'},
-        {'name': 'Gatundu Level 4 Hospital'}
+        {'name': 'Gatundu Level 4 Hospital'},
+        {'name': 'Nairobi Hospital'}
       ];
     }
 
@@ -85,9 +105,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _handleUpdate() {
+  Future<void> _handleUpdate() async {
     if (_formKey.currentState!.validate()) {
-      // 💾 Logic to save profile changes would go here
+      // 💾 ☁️ Logic to save profile changes to Firestore
+      try {
+        await FirebaseFirestore.instance.collection('patients_profiles').doc(_nameController.text).set({
+          'name': _nameController.text,
+          'phone': _phoneController.text,
+          'bloodGroup': _selectedBloodGroup,
+          'gender': _selectedGender,
+          'weight': _weightController.text,
+          'height': _heightController.text,
+          'hospital': _selectedHospital,
+          'last_updated': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Error saving to cloud: $e");
+      }
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Profile Updated Successfully! 🩺'),
@@ -132,143 +168,145 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              // 🖼️ Profile Image Header
-              Center(
-                child: Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 65,
-                      backgroundColor: Colors.teal.shade50,
-                      backgroundImage: _profileImage != null ? FileImage(_profileImage!) : null,
-                      child: _profileImage == null
-                          ? const Icon(Icons.person, size: 70, color: Colors.teal)
-                          : null,
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 4,
-                      child: GestureDetector(
-                        onTap: _pickImage,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: Colors.teal,
-                            shape: BoxShape.circle,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                // 🖼️ Profile Image Header
+                Center(
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 65,
+                        backgroundColor: Colors.teal.shade50,
+                        backgroundImage: _profileImage != null ? FileImage(_profileImage!) : null,
+                        child: _profileImage == null
+                            ? const Icon(Icons.person, size: 70, color: Colors.teal)
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: _pickImage,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(
+                              color: Colors.teal,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
                           ),
-                          child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 35),
+
+                _buildSectionHeader('Account Information'),
+                const SizedBox(height: 15),
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Full Name',
+                    prefixIcon: Icon(Icons.person_outline),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) => value!.isEmpty ? 'Please enter your name' : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone Number',
+                    prefixIcon: Icon(Icons.phone_android_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.phone,
+                ),
+
+                const SizedBox(height: 25),
+                _buildSectionHeader('Medical Profile'),
+                const SizedBox(height: 15),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedBloodGroup,
+                        decoration: const InputDecoration(labelText: 'Blood Group', border: OutlineInputBorder()),
+                        items: _bloodGroups.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                        onChanged: (v) => setState(() => _selectedBloodGroup = v),
+                      ),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedGender,
+                        decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
+                        items: _genders.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                        onChanged: (v) => setState(() => _selectedGender = v),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 35),
-
-              _buildSectionHeader('Account Information'),
-              const SizedBox(height: 15),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  prefixIcon: Icon(Icons.person_outline),
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) => value!.isEmpty ? 'Please enter your name' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  prefixIcon: Icon(Icons.phone_android_outlined),
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-
-              const SizedBox(height: 25),
-              _buildSectionHeader('Medical Profile'),
-              const SizedBox(height: 15),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _selectedBloodGroup,
-                      decoration: const InputDecoration(labelText: 'Blood Group', border: OutlineInputBorder()),
-                      items: _bloodGroups.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                      onChanged: (v) => setState(() => _selectedBloodGroup = v),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _weightController,
+                        decoration: const InputDecoration(labelText: 'Weight (kg)', border: OutlineInputBorder()),
+                        keyboardType: TextInputType.number,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 15),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _selectedGender,
-                      decoration: const InputDecoration(labelText: 'Gender', border: OutlineInputBorder()),
-                      items: _genders.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                      onChanged: (v) => setState(() => _selectedGender = v),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _heightController,
+                        decoration: const InputDecoration(labelText: 'Height (cm)', border: OutlineInputBorder()),
+                        keyboardType: TextInputType.number,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _weightController,
-                      decoration: const InputDecoration(labelText: 'Weight (kg)', border: OutlineInputBorder()),
-                      keyboardType: TextInputType.number,
-                    ),
-                  ),
-                  const SizedBox(width: 15),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _heightController,
-                      decoration: const InputDecoration(labelText: 'Height (cm)', border: OutlineInputBorder()),
-                      keyboardType: TextInputType.number,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 25),
-              _buildSectionHeader('Preferred Health Center'),
-              const SizedBox(height: 15),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedHospital,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Primary Hospital',
-                  prefixIcon: Icon(Icons.local_hospital_outlined),
-                  border: OutlineInputBorder(),
+                  ],
                 ),
-                items: _hospitalsList.map((h) {
-                  return DropdownMenuItem<String>(
-                    value: h['name'].toString(),
-                    child: Text(h['name'], overflow: TextOverflow.ellipsis),
-                  );
-                }).toList(),
-                onChanged: (v) => setState(() => _selectedHospital = v),
-              ),
 
-              const SizedBox(height: 40),
-              ElevatedButton(
-                onPressed: _handleUpdate,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 55),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                const SizedBox(height: 25),
+                _buildSectionHeader('Preferred Health Center'),
+                const SizedBox(height: 15),
+                DropdownButtonFormField<String>(
+                  value: _selectedHospital,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Primary Hospital',
+                    prefixIcon: Icon(Icons.local_hospital_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _hospitalsList.map((h) {
+                    return DropdownMenuItem<String>(
+                      value: h['name'].toString(),
+                      child: Text(h['name'], overflow: TextOverflow.ellipsis),
+                    );
+                  }).toList(),
+                  onChanged: (v) => setState(() => _selectedHospital = v),
                 ),
-                child: const Text('Save Profile Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(height: 30),
-            ],
+
+                const SizedBox(height: 40),
+                ElevatedButton(
+                  onPressed: _handleUpdate,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 55),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Save Profile Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 30),
+              ],
+            ),
           ),
         ),
       ),

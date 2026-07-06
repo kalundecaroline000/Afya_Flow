@@ -64,6 +64,22 @@ class _BookingScreenState extends State<BookingScreen> {
                 elevation: 2,
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
+                  onTap: () {
+                    if (doctor.isAvailable) {
+                      // 🚀 Pass selected doctor back to patient_appointments_screen form setup
+                      Navigator.pop(context, {
+                        'name': doctor.name,
+                        'specialty': doctor.specialty,
+                      });
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("${doctor.name} is currently on leave. Please pick an available doctor."),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    }
+                  },
                   leading: const CircleAvatar(
                     backgroundColor: Colors.teal,
                     child: Icon(Icons.person, color: Colors.white),
@@ -73,7 +89,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: doctor.isAvailable ? Colors.teal.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                      color: doctor.isAvailable ? Colors.teal.withValues(alpha: 0.1) : Colors.red.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(

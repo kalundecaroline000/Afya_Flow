@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart'; // 📍 Added for Paired Week 9 GPS Hardware Tracking
 
 // Service Imports
 import '../services/local_storage_service.dart';
@@ -7,13 +8,16 @@ import '../services/network_service.dart';
 import '../services/hospital_service.dart';
 
 // Screen Imports
-import 'booking_screen.dart';
+import 'booking_screen.dart'; // ✅ Now Active: Find Doctor
 import 'records_screen.dart';
+import 'messages_screen.dart'; // ✅ Now Active: Direct Inbox
 import 'profile_screen.dart';
 import 'prescriptions_screen.dart';
 import 'billing_screen.dart';
 import 'notifications_screen.dart';
-import 'patient_screen.dart';
+import 'patient_screen.dart'; // ✅ Now Active: Secure Logout
+import 'my_appointments_screen.dart'; // ✅ Contains PatientAppointmentsScreen
+import 'patient_chat gateway_screen.dart'; // ✅ Integrated Gateway Chat Screen
 
 class PatientDashboard extends StatefulWidget {
   const PatientDashboard({super.key});
@@ -24,11 +28,15 @@ class PatientDashboard extends StatefulWidget {
 
 class _PatientDashboardState extends State<PatientDashboard> {
   int _currentIndex = 0;
-  String _displayName = "Kalunde"; // Personalized presentation fallback
+  String _displayName = "";
   String? _profileImagePath;
   bool _isLoading = true;
   List<dynamic> _hospitalsList = [];
   final NetworkService _networkService = NetworkService();
+
+  // 📍 Week 9 State Elements to hold live tracking variables
+  String _gpsCoordinatesDisplay = "Not Transmitted";
+  bool _isFetchingGPS = false;
 
   @override
   void initState() {
@@ -37,16 +45,11 @@ class _PatientDashboardState extends State<PatientDashboard> {
     _loadDashboardData();
   }
 
-  // Helper method to calculate real-time greeting based on device hour
   String _getDynamicGreeting() {
     final hour = DateTime.now().hour;
-    if (hour < 12) {
-      return "Good morning";
-    } else if (hour < 17) {
-      return "Good afternoon";
-    } else {
-      return "Good evening";
-    }
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
   }
 
   Future<void> _checkNetworkStatus() async {
@@ -70,12 +73,70 @@ class _PatientDashboardState extends State<PatientDashboard> {
 
     if (!mounted) return;
     setState(() {
-      // Updates name dynamically based on who logged in!
       if (name.isNotEmpty && name != "Patient") _displayName = name;
       _profileImagePath = imagePath;
       _hospitalsList = hospitals;
       _isLoading = false;
     });
+  }
+
+  // 📍 Paired Week 9 Integration Function: Verifies permission status and polls Fused Location coordinates
+  Future<void> transmitGPSLocation() async {
+    setState(() => _isFetchingGPS = true);
+
+    try {
+      // 1. Check if device location services are turned on
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() => _isFetchingGPS = false);
+        _showGpsSnackBar('Please enable location services.', Colors.orange);
+        return;
+      }
+
+      // 2. Request phone permissions programmatically
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() => _isFetchingGPS = false);
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() => _isFetchingGPS = false);
+        _showGpsSnackBar("Location permissions are permanently denied.", Colors.redAccent);
+        return;
+      }
+
+      // 3. Successfully fetch coordinates from the phone hardware
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      ).timeout(const Duration(seconds: 8));
+
+      // 4. Update the UI state with the real coordinates
+      if (!mounted) return;
+      setState(() {
+        _gpsCoordinatesDisplay =
+        "Lat: ${position.latitude.toStringAsFixed(4)}\nLon: ${position.longitude.toStringAsFixed(4)}";
+        _isFetchingGPS = false;
+      });
+
+      _showGpsSnackBar("Coordinates captured! Emergency Services Dispatched 🚨", Colors.teal);
+    } catch (e) {
+      if (mounted) setState(() => _isFetchingGPS = false);
+      _showGpsSnackBar("GPS Timeout or error. Please try again.", Colors.redAccent);
+    }
+  }
+
+  void _showGpsSnackBar(String message, Color statusColor) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: statusColor,
+        behavior: SnackBarBehavior.floating,
+        content: Text(message, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ),
+    );
   }
 
   Future<void> _navigateToProfile() async {
@@ -93,7 +154,65 @@ class _PatientDashboardState extends State<PatientDashboard> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      drawer: const Drawer(),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            UserAccountsDrawerHeader(
+              accountName: Text(
+                _displayName,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white),
+              ),
+              accountEmail: const Text("Patient Portal Active", style: TextStyle(color: Colors.white70)),
+              currentAccountPicture: CircleAvatar(
+                backgroundColor: Colors.white.withValues(alpha: 0.9),
+                child: const Icon(Icons.person, size: 45, color: Colors.teal),
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.teal,
+                borderRadius: BorderRadius.only(bottomRight: Radius.circular(16)),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
+              child: Text("Account Preferences", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_outlined, color: Colors.teal),
+              title: const Text('App Settings'),
+              subtitle: const Text('Manage notifications and preferences'),
+              trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+              onTap: () => Navigator.pop(context),
+            ),
+            const Divider(indent: 16, endIndent: 16),
+            const Padding(
+              padding: EdgeInsets.only(left: 16, top: 10, bottom: 5),
+              child: Text("Help & Resources", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.contact_support_outlined, color: Colors.teal),
+              title: const Text('Health & Support'),
+              subtitle: const Text('FAQs, terms, and customer care help'),
+              trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+              onTap: () => Navigator.pop(context),
+            ),
+            const Divider(indent: 16, endIndent: 16),
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+              title: const Text('Log Out Securely', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w500)),
+              onTap: () async {
+                await LocalStorageService.clearSession();
+                if (!context.mounted) return;
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PatientScreen()),
+                      (route) => false,
+                );
+              },
+            ),
+          ],
+        ),
+      ),
       appBar: _buildPremiumAppBar(),
       body: SingleChildScrollView(
         child: Column(
@@ -112,8 +231,6 @@ class _PatientDashboardState extends State<PatientDashboard> {
       bottomNavigationBar: _buildPremiumBottomNav(),
     );
   }
-
-  // --- PREMIUM UI SECTIONS ---
 
   PreferredSizeWidget _buildPremiumAppBar() {
     return AppBar(
@@ -169,17 +286,19 @@ class _PatientDashboardState extends State<PatientDashboard> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 🚀 Dynamic Time Greeting + Dynamic Logged-in Name!
-              Text(
-                "${_getDynamicGreeting()}, $_displayName 👋",
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-              ),
-              const SizedBox(height: 4),
-              const Text("Your health, our priority 🩵", style: TextStyle(color: Colors.grey, fontSize: 14)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "${_getDynamicGreeting()}, $_displayName 👋",
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                  softWrap: true,
+                ),
+                const SizedBox(height: 4),
+                const Text("Your health, our priority 🩵", style: TextStyle(color: Colors.grey, fontSize: 14)),
+              ],
+            ),
           ),
           Container(
             height: 50,
@@ -242,10 +361,12 @@ class _PatientDashboardState extends State<PatientDashboard> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.only(left: 20),
             children: [
-              _buildActionItem('Book\nAppointment', Icons.calendar_month, const Color(0xFF0D9488), const BookingScreen()),
-              _buildActionItem('Chat with\nDoctor', Icons.chat_bubble, const Color(0xFF2563EB), const PatientScreen()),
+              _buildActionItem('Billing\nPortal', Icons.receipt_long, Colors.orange, const BillingScreen()),
+              _buildActionItem('Find\nDoctor', Icons.person_search, Colors.teal, const BookingScreen()),
+              _buildActionItem('Chat with\nDoctor', Icons.chat_bubble, const Color(0xFF2563EB), const PatientChatGatewayScreen()),
+              _buildActionItem('Direct\nInbox', Icons.mail_outline, Colors.blueGrey, MessagesScreen(patientName: _displayName)),
+              _buildActionItem('Book AI\nAppt', Icons.auto_awesome, const Color(0xFF0D9488), const PatientAppointmentsScreen()),
               _buildActionItem('My\nRecords', Icons.assignment, const Color(0xFF6366F1), const RecordsScreen()),
-              _buildActionItem('Emergency\nSOS', Icons.notification_important, const Color(0xFFEF4444), const RecordsScreen()),
               _buildActionItem('Pharmacy\nCheck', Icons.medication, const Color(0xFF10B981), const PrescriptionsScreen()),
             ],
           ),
@@ -350,7 +471,6 @@ class _PatientDashboardState extends State<PatientDashboard> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Left Box: SQLite database-cached hospital values
           Expanded(
             child: Container(
               padding: const EdgeInsets.all(16),
@@ -378,29 +498,47 @@ class _PatientDashboardState extends State<PatientDashboard> {
             ),
           ),
           const SizedBox(width: 15),
-          // Right Box: Dynamic Health Tips block
           Expanded(
             child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(16)),
-              child: const Column(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF1F2),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.red.shade100),
+              ),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Health Tip", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B))),
-                  SizedBox(height: 8),
-                  Text(
-                    "Drink enough water today. It keeps your body and mind fresh.",
-                    style: TextStyle(fontSize: 12, color: Color(0xFF334155), height: 1.4),
-                  ),
-                  SizedBox(height: 20),
                   Row(
                     children: [
-                      CircleAvatar(radius: 3, backgroundColor: Color(0xFF2563EB)),
-                      SizedBox(width: 4),
-                      CircleAvatar(radius: 3, backgroundColor: Colors.black12),
-                      SizedBox(width: 4),
-                      CircleAvatar(radius: 3, backgroundColor: Colors.black12),
+                      Icon(Icons.g_mobiledata, color: Colors.red.shade700, size: 20),
+                      const SizedBox(width: 2),
+                      Text("GPS Emergency", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red.shade900)),
                     ],
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    height: 48,
+                    alignment: Alignment.centerLeft,
+                    child: _isFetchingGPS
+                        ? const Center(child: SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.redAccent)))
+                        : Text(
+                      _gpsCoordinatesDisplay,
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.blueGrey.shade800, fontFamily: 'monospace', height: 1.3),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade600,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      minimumSize: const Size(double.infinity, 32),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: EdgeInsets.zero,
+                    ),
+                    onPressed: transmitGPSLocation,
+                    child: const Text("Transmit GPS", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   )
                 ],
               ),
@@ -433,55 +571,44 @@ class _PatientDashboardState extends State<PatientDashboard> {
               const Divider(height: 1, indent: 60),
               _buildRecordTile("Chest X-Ray", "10 May 2025", "Normal", Colors.blue.shade50, Icons.bubble_chart, Colors.blue),
               const Divider(height: 1, indent: 60),
-              _buildRecordTile("Prescription", "08 May 2025", "2 Medicines", Colors.green.shade50, Icons.medication, Colors.green),
+              _buildRecordTile("Prescription", "05 May 2025", "Active", Colors.green.shade50, Icons.medication, Colors.green),
             ],
           ),
-        )
+        ),
       ],
     );
   }
 
-  Widget _buildRecordTile(String title, String date, String status, Color bgIcon, IconData icon, Color iconColor) {
+  Widget _buildRecordTile(String title, String date, String status, Color bgColor, IconData icon, Color iconColor) {
     return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: bgIcon, shape: BoxShape.circle),
-        child: Icon(icon, color: iconColor, size: 22),
-      ),
+      leading: CircleAvatar(backgroundColor: bgColor, child: Icon(icon, color: iconColor)),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-      subtitle: Text("$date  •  $status", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+      subtitle: Text(date, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(12)),
+        child: Text(status, style: TextStyle(color: iconColor, fontSize: 12, fontWeight: FontWeight.bold)),
+      ),
     );
   }
 
   Widget _buildPremiumBottomNav() {
     return BottomNavigationBar(
       currentIndex: _currentIndex,
-      selectedItemColor: const Color(0xFF0D9488),
-      unselectedItemColor: Colors.grey,
-      showUnselectedLabels: true,
-      type: BottomNavigationBarType.fixed,
-      selectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-      unselectedLabelStyle: const TextStyle(fontSize: 11),
-      onTap: (i) {
-        if (i == 4) {
-          _navigateToProfile();
-        } else if (i == 1) {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const BookingScreen()));
-        } else if (i == 2) {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const RecordsScreen()));
-        } else if (i == 3) {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const PatientScreen()));
-        } else {
-          setState(() => _currentIndex = i);
+      onTap: (index) {
+        setState(() => _currentIndex = index);
+        if (index == 1) {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const PatientAppointmentsScreen()));
         }
       },
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: const Color(0xFF0D9488),
+      unselectedItemColor: Colors.grey,
       items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-        BottomNavigationBarItem(icon: Icon(Icons.calendar_month_outlined), label: 'Appointments'),
-        BottomNavigationBarItem(icon: Icon(Icons.folder_open_outlined), label: 'Records'),
-        BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline_rounded), label: 'Messages'),
-        BottomNavigationBarItem(icon: Icon(Icons.person_outline_rounded), label: 'Profile'),
+        BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: "Home"),
+        BottomNavigationBarItem(icon: Icon(Icons.calendar_month_outlined), label: "Book Appt"),
+        BottomNavigationBarItem(icon: Icon(Icons.assignment_outlined), label: "History"),
+        BottomNavigationBarItem(icon: Icon(Icons.person_outline_rounded), label: "Profile"),
       ],
     );
   }

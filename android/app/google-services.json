@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "929383649137",
+    "project_id": "afyaflow-3bcc2",
+    "storage_bucket": "afyaflow-3bcc2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:929383649137:android:3c4db629da83e4dc8ab0d0",
+        "android_client_info": {
+          "package_name": "com.carolmedia.afya_flow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC1C6XAZgJRKQh4w0fPi2isCGh1-zrWnsk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

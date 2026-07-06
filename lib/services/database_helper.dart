@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 class DatabaseHelper {
+  // 1. Singleton pattern
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
@@ -20,6 +21,7 @@ class DatabaseHelper {
   }
 
   Future _createDB(Database db, int version) async {
+    // Create Hospitals table
     await db.execute('''
       CREATE TABLE hospitals (
         id TEXT PRIMARY KEY,
@@ -27,21 +29,54 @@ class DatabaseHelper {
         location TEXT NOT NULL
       )
     ''');
+
+    // ✅ Create Users table for Login
+    await db.execute('''
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL
+      )
+    ''');
   }
 
-  // ✅ Method to save/cache a hospital
-  Future<void> cacheHospital(String id, String name, String location) async {
-    final db = await instance.database;
+  // ✅ Method to Register a User
+  Future<int> registerUser(String name, String email, String password) async {
+    final db = await database;
+    return await db.insert('users', {
+      'name': name,
+      'email': email,
+      'password': password,
+    });
+  }
+
+  // ✅ Method to Login a User
+  Future<Map<String, dynamic>?> loginUser(String email, String password) async {
+    final db = await database;
+    final List<Map<String, dynamic>> result = await db.query(
+      'users',
+      where: 'email = ? AND password = ?',
+      whereArgs: [email, password],
+    );
+
+    if (result.isNotEmpty) {
+      return result.first;
+    }
+    return null;
+  }
+
+  // 🚀 NEW METHOD: This caches the hospitals fetched from your service!
+  Future<void> cacheHospital(Map<String, dynamic> hospitalData) async {
+    final db = await database;
     await db.insert(
       'hospitals',
-      {'id': id, 'name': name, 'location': location},
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      hospitalData,
+      conflictAlgorithm: ConflictAlgorithm.replace, // Replaces if the hospital already exists
     );
   }
-
-  // ✅ NEW: Method to retrieve all cached hospitals for the Dashboard
-  Future<List<Map<String, dynamic>>> getAllHospitals() async {
-    final db = await instance.database;
+  Future<List<Map<String,dynamic>>> getAllHospitals() async {
+    final db = await database;
     return await db.query('hospitals');
   }
 }

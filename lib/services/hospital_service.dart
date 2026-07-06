@@ -15,11 +15,11 @@ class HospitalService {
 
         // Cache them into SQLite database locally
         for (var hospital in hospitals) {
-          await DatabaseHelper.instance.cacheHospital(
-            hospital['id'].toString(),
-            hospital['name'],
-            hospital['location'],
-          );
+          await DatabaseHelper.instance.cacheHospital({
+            'id': hospital['id'].toString(),
+            'name': hospital['name'],
+            'location': hospital['location'],
+          });
         }
         return hospitals;
       }
